@@ -1,11 +1,13 @@
-from typing import Union
+import inspect
+import os
+from typing import Union, List
 
 import serial
 from escpos.printer import Usb, Serial, Network
 from usb.core import NoBackendError
 
 from TikTokPrinter.client.engines.console import Console
-from TikTokPrinter.types.errors import MissingPrinterDriver
+from TikTokPrinter.types.errors import MissingPrinterDriver, SetupMonkeyPatch
 
 
 class EscposEngine:
@@ -88,6 +90,31 @@ class EscposEngineGenerator:
                 "Install the libusK driver (or similar) via recommended Zadig installer to continue.\n"
                 "Information on how to do this can be found quite easily within the setup guide for this library."
             ) from ex
+
+        if isinstance(ex, NotImplementedError) and str(ex) == "detach_kernel_driver":
+            edit_file: bool = False
+
+            if str(os.name) == "nt":
+                import escpos.printer
+
+                fp = inspect.getsourcefile(escpos.printer)
+
+                with open(fp, "r", encoding="utf-8") as file:
+                    lines: List[str] = file.readlines()
+
+                    if any("check_driver = None" in line for line in lines):
+                        edit_file = True
+
+                if edit_file:
+                    with open(fp, "w", encoding="utf-8") as file:
+                        lines = lines[:57] + lines[71:]
+                        file.write("".join(lines))
+
+            if edit_file:
+                raise SetupMonkeyPatch(
+                    "Your Windows-Specific setup seems to have failed. We are attempting to "
+                    "retroactively fix it. Restart the script for it to take effect. "
+                )
 
         raise ex
 

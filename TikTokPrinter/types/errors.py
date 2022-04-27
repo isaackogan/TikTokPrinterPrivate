@@ -25,3 +25,12 @@ class MissingPrinterDriver(RuntimeError):
     """
 
     pass
+
+
+class SetupMonkeyPatch(RuntimeError):
+    """
+    Your Windows-specific auto-setup failed, we are monkey-patching the setup.
+
+    """
+
+    pass

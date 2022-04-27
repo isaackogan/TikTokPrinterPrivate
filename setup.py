@@ -10,7 +10,7 @@ try:
     setuptools.setup(
         name="TikTokPrinter",
         packages=setuptools.find_packages(),
-        version="0.0.1",
+        version="0.0.3",
         license="MIT",
         description="TikTokLive Printer Library",
         author="Isaac Kogan",
@@ -26,7 +26,8 @@ try:
             "dacite>=1.6.0",  # Requests
             "TikTokLive",
             "pyttsx3",
-            "playsound==1.2.2"
+            "playsound==1.2.2",
+            "python-escpos==2.2.0"
         ],
         classifiers=[
             "Development Status :: 4 - Beta",
@@ -42,10 +43,10 @@ try:
         ]
     )
 finally:
+    # TODO this isn't working... fix it.
+
     # Modify python-escpos to work on Windows
     try:
-        os.system("python-escpos==2.2.0")
-
         edit_file: bool = False
 
         if str(os.name) == "nt":
