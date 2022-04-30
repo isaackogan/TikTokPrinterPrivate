@@ -196,8 +196,15 @@ class EscposEngineGenerator:
                 print(f"\n{cls.__RED}Failed:", str(ex), f"- Try again!{cls.__RESET}")
                 pass
 
+        # Get name
+        name = usb.util.get_string(_picked, _picked.iProduct)
+        name = name.strip() if name is not None else "Unknown"
+        
+        # Get manufacturer
+        manufacturer = str(_picked.manufacturer).strip() if _picked.manufacturer is not None else "Kunknown"
+
         print(
-            f"\n{cls.__GREEN}Successfully chose {usb.util.get_string(_picked, _picked.iProduct).strip()} ({_picked.manufacturer}) "
+            f"\n{cls.__GREEN}Successfully chose {name} ({manufacturer}) "
             f"[Product ID: {hex(_picked.idProduct)} | Vendor ID: {hex(_picked.idVendor)}]{cls.__RESET}\n"
         )
 

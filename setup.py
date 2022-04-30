@@ -10,7 +10,7 @@ try:
     setuptools.setup(
         name="TikTokPrinter",
         packages=setuptools.find_packages(),
-        version="0.0.5",
+        version="0.0.6",
         license="MIT",
         description="TikTokLive Printer Library",
         author="Isaac Kogan",
