@@ -34,3 +34,10 @@ class SetupMonkeyPatch(RuntimeError):
     """
 
     pass
+
+
+class NoDevicesFound(RuntimeError):
+    """
+    No USB devices could be found connected to your system.
+
+    """

@@ -1,13 +1,15 @@
 import inspect
 import os
-from typing import Union, List
+from typing import Union, List, Any, Optional
 
 import serial
+import usb
+from escpos.exceptions import USBNotFoundError
 from escpos.printer import Usb, Serial, Network
-from usb.core import NoBackendError
+from usb.core import NoBackendError, find
 
 from TikTokPrinter.client.engines.console import Console
-from TikTokPrinter.types.errors import MissingPrinterDriver, SetupMonkeyPatch
+from TikTokPrinter.types.errors import MissingPrinterDriver, SetupMonkeyPatch, NoDevicesFound
 
 
 class EscposEngine:
@@ -56,6 +58,17 @@ class EscposEngineGenerator:
 
     """
 
+    __HEADER = '\033[95m'
+    __BLUE = '\033[94m'
+    __CYAN = '\033[96m'
+    __GREEN = '\033[92m'
+    __WARNING = '\033[93m'
+    __FAIL = '\033[91m'
+    __RESET = '\033[0m'
+    __BOLD = '\033[1m'
+    __UNDERLINE = '\033[4m'
+    __RED = '\033[31m'
+
     @staticmethod
     def __remove_printer_kwargs(**kwargs) -> dict:
         """
@@ -87,8 +100,12 @@ class EscposEngineGenerator:
         if isinstance(ex, NoBackendError):
             raise MissingPrinterDriver(
                 "The printer system could not detect a driver. More information below:\n\n"
-                "Install the libusK driver (or similar) via recommended Zadig installer to continue.\n"
-                "Information on how to do this can be found quite easily within the setup guide for this library."
+                "WINDOWS USERS\n\nInstall the libusK driver (or similar) via recommended Zadig installer to continue.\n"
+                "Information on how to do this can be found quite easily within the setup guide for this library.\n\n"
+                "MACOS USERS\n\nInstall libusb via homebrew. Your python will also need to be a homebrew install in "
+                "order to recognize the libusb package when you install it via homebrew.\n\n"
+                "LINUX USERS\n\n"
+                "Should just be able to install libusb for Linux."
             ) from ex
 
         if isinstance(ex, NotImplementedError) and str(ex) == "detach_kernel_driver":
@@ -119,13 +136,82 @@ class EscposEngineGenerator:
         raise ex
 
     @classmethod
+    def __auto_select(cls, timeout: int = 1000, in_ep: hex = 0x82, out_ep: hex = 0x01, *args, **kwargs) -> EscposEngine:
+        """
+        Automatically select a device & input the given config
+
+        :param timeout: Device timeout
+        :param in_ep: In endpoint
+        :param out_ep: Out endpoint
+        :param args: create_usb args
+        :param kwargs: create_usb kwargs
+        :return: An EscposEngine object
+
+        """
+
+        # List all devices
+        devices: List[Any] = list(find(find_all=True))
+
+        # No Devices, raise error
+        if len(devices) < 1:
+            raise NoDevicesFound("Could not locate any USB devices on your system. Check that your device is plugged in & turned on.")
+
+        # Enumerate through devices
+        print(f"{cls.__RED}[Found {len(devices)} Total Device{'s' if len(devices) > 1 else ''}]{cls.__RESET}")
+        for idx, device in enumerate(devices):
+            try:
+                print(
+                    f"{idx + 1}. {usb.util.get_string(device, device.iProduct).strip()} ({device.manufacturer}) "
+                    f"[Product ID: {hex(device.idProduct)} | Vendor ID: {hex(device.idVendor)}]"
+                )
+            except:
+                print(
+                    f"{idx + 1}. Unknown USB Device [Product ID: {hex(device.idProduct)} | Vendor ID: {hex(device.idVendor)}]"
+                )
+
+        picked: Optional[EscposEngine] = None
+        _picked: Optional[Any] = None
+
+        # Pick loop
+        while not picked:
+            print(f"\nInput a number from {cls.__RED}[1 to {len(devices)}]{cls.__RESET} to pick your device.")
+            choice: str = input("> ")
+
+            try:
+                pick_idx = int(choice) - 1
+                _picked = devices[pick_idx]
+
+                picked = cls.create_usb(
+                    vendor_id=_picked.idVendor,
+                    product_id=_picked.idProduct,
+                    timeout=timeout,
+                    in_ep=in_ep,
+                    out_ep=out_ep,
+                    auto_find=False,
+                    *args,
+                    **kwargs,
+                )
+
+            except Exception as ex:
+                print(f"\n{cls.__RED}Failed:", str(ex), f"- Try again!{cls.__RESET}")
+                pass
+
+        print(
+            f"\n{cls.__GREEN}Successfully chose {usb.util.get_string(_picked, _picked.iProduct).strip()} ({_picked.manufacturer}) "
+            f"[Product ID: {hex(_picked.idProduct)} | Vendor ID: {hex(_picked.idVendor)}]{cls.__RESET}\n"
+        )
+
+        return picked
+
+    @classmethod
     def create_usb(
             cls,
             vendor_id: hex,
             product_id: hex,
+            auto_find: bool = True,
             timeout: int = 1000,
-            in_ep: hex = 0x81,
-            out_ep: hex = 0x03,
+            in_ep: hex = 0x82,
+            out_ep: hex = 0x01,
             *args,
             **kwargs
     ) -> EscposEngine:
@@ -136,6 +222,10 @@ class EscposEngineGenerator:
 
         For more information on kwargs, visit https://python-escpos.readthedocs.io/en/latest/.
 
+        If you receive the Invalid Endpoint address error, pass the following in for a custom in_ep and out_ep:
+        in_ep: hex = 0x81, out_ep: hex = 0x03. That *might* fix it.
+
+        :param auto_find: Automatically detect & select from a list of USB devices
         :param vendor_id: Vendor ID of the printer
         :param product_id: Product ID of the printer
         :param timeout: Timeout for printer commands
@@ -162,6 +252,11 @@ class EscposEngineGenerator:
                 **kwargs
             )
         except Exception as ex:
+            # Find printer
+            if isinstance(ex, USBNotFoundError) and auto_find:
+                return cls.__auto_select(timeout, in_ep, out_ep, *args, **kwargs)
+
+            # Generic raise error
             EscposEngineGenerator.__handle_exceptions(ex)
 
     @classmethod
