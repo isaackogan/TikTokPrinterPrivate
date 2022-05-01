@@ -43,7 +43,7 @@ class MissingPrinterDriver(RuntimeError):
 
 class SetupMonkeyPatch(RuntimeError):
     """
-    Your Windows-specific auto-setup failed, we are monkey-patching the setup.
+    You are on Windows. a monkey-patch setup is required.
 
     """
 

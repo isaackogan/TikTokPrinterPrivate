@@ -144,8 +144,8 @@ class EscposEngineGenerator:
 
             if edit_file:
                 raise SetupMonkeyPatch(
-                    "Your Windows-Specific setup seems to have failed. We are attempting to "
-                    "retroactively fix it. Restart the script for it to take effect. "
+                    "You are on Windows, and python-escpos is not properly configured. We are attempting to "
+                    "retroactively fix it. Restart the script for it to take effect. If you have previously edited python-escpos, this may break the package. If that happens, re-install it to fix."
                 )
 
         raise ex
