@@ -2,4 +2,4 @@ dist
 .idea
 requirements.txt
 TikTokPrinter.egg-info
-main.py
+testing.py

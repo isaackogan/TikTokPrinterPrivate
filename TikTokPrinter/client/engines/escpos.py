@@ -1,5 +1,20 @@
+"""
+Copyright (C) Isaac Kogan, Inc - All Rights Reserved
+Unauthorized copying of this project, via any medium is strictly prohibited
+Proprietary work of Isaac Kogan
+Written by Isaac Kogan <isaacikogan@gmail.com>, April 2022
+
+You are permitted to use this project commercially so long as it was purchased firsthand from Isaac Kogan.
+Distributing secondhand copies to others is strictly prohibited & is illegal.
+
+You can do anything with this project except redistribute it.
+
+"""
+
 import inspect
+import logging
 import os
+import traceback
 from typing import Union, List, Any, Optional
 
 import serial
@@ -160,6 +175,7 @@ class EscposEngineGenerator:
         print(f"{cls.__RED}[Found {len(devices)} Total Device{'s' if len(devices) > 1 else ''}]{cls.__RESET}")
         for idx, device in enumerate(devices):
             try:
+                print()
                 print(
                     f"{idx + 1}. {usb.util.get_string(device, device.iProduct).strip()} ({device.manufacturer}) "
                     f"[Product ID: {hex(device.idProduct)} | Vendor ID: {hex(device.idVendor)}]"
@@ -193,15 +209,20 @@ class EscposEngineGenerator:
                 )
 
             except Exception as ex:
+                # They need to actually leave lol
+                if isinstance(ex, SetupMonkeyPatch):
+                    logging.error(traceback.format_exc())
+                    exit()
+
                 print(f"\n{cls.__RED}Failed:", str(ex), f"- Try again!{cls.__RESET}")
                 pass
 
         # Get name
         name = usb.util.get_string(_picked, _picked.iProduct)
         name = name.strip() if name is not None else "Unknown"
-        
+
         # Get manufacturer
-        manufacturer = str(_picked.manufacturer).strip() if _picked.manufacturer is not None else "Kunknown"
+        manufacturer = str(_picked.manufacturer).strip() if _picked.manufacturer is not None else "Unknown"
 
         print(
             f"\n{cls.__GREEN}Successfully chose {name} ({manufacturer}) "
@@ -213,8 +234,8 @@ class EscposEngineGenerator:
     @classmethod
     def create_usb(
             cls,
-            vendor_id: hex,
-            product_id: hex,
+            vendor_id: hex = 0x1,
+            product_id: hex = 0x1,
             auto_find: bool = True,
             timeout: int = 1000,
             in_ep: hex = 0x82,
