@@ -15,7 +15,7 @@ import inspect
 import logging
 import os
 import traceback
-from typing import Union, List, Any, Optional
+from typing import Union, List, Any, Optional, Tuple
 
 import serial
 import usb
@@ -151,13 +151,44 @@ class EscposEngineGenerator:
         raise ex
 
     @classmethod
-    def __auto_select(cls, timeout: int = 1000, in_ep: hex = 0x82, out_ep: hex = 0x01, *args, **kwargs) -> EscposEngine:
+    def __find_endpoints(cls, device: usb.core.Device, in_ep: Optional[hex], out_ep: Optional[hex]) -> Tuple[hex, hex]:
+        """
+        Automatically search a device for the proper in_ep and out_ep values.
+
+        :param device: The device to search
+        :param in_ep: The default endpoint in
+        :param out_ep: The default endpoint out
+        :return: Tuple containing either the defaults or the found endpoints
+
+        """
+
+        # Default values if they cannot be found
+        in_ep, out_ep = 0x81, 0x01
+
+        # If device is not found
+        if isinstance(device, usb.core.Device):
+            # Iterate through configs
+            for config in device:
+                # Iterate through interfaces
+                for interface in config:
+                    # Iterate through endpoints
+                    for endpoint in interface:
+                        if usb.util.endpoint_direction(endpoint.bEndpointAddress) == usb.util.ENDPOINT_IN:
+                            in_ep: hex = endpoint.bEndpointAddress
+                        else:
+                            out_ep: hex = endpoint.bEndpointAddress
+                    break
+
+        return in_ep, out_ep
+
+    @classmethod
+    def __auto_select(cls, timeout: int = 1000, in_ep_override: Optional[hex] = None, out_ep_override: Optional[hex] = None, *args, **kwargs) -> EscposEngine:
         """
         Automatically select a device & input the given config
 
         :param timeout: Device timeout
-        :param in_ep: In endpoint
-        :param out_ep: Out endpoint
+        :param in_ep_override: In endpoint override
+        :param out_ep_override: Out endpoint override
         :param args: create_usb args
         :param kwargs: create_usb kwargs
         :return: An EscposEngine object
@@ -175,7 +206,6 @@ class EscposEngineGenerator:
         print(f"{cls.__RED}[Found {len(devices)} Total Device{'s' if len(devices) > 1 else ''}]{cls.__RESET}")
         for idx, device in enumerate(devices):
             try:
-                print()
                 print(
                     f"{idx + 1}. {usb.util.get_string(device, device.iProduct).strip()} ({device.manufacturer}) "
                     f"[Product ID: {hex(device.idProduct)} | Vendor ID: {hex(device.idVendor)}]"
@@ -197,12 +227,23 @@ class EscposEngineGenerator:
                 pick_idx = int(choice) - 1
                 _picked = devices[pick_idx]
 
+                _in_ep, _out_ep = cls.__find_endpoints(device=_picked, in_ep=in_ep_override, out_ep=out_ep_override)
+
+                # Override in_ep value
+                if in_ep_override:
+                    _in_ep = in_ep_override
+
+                # Override out_ep value
+                if out_ep_override:
+                    _out_ep = out_ep_override
+
+                print(hex(_in_ep), hex(_out_ep))
                 picked = cls.create_usb(
                     vendor_id=_picked.idVendor,
                     product_id=_picked.idProduct,
                     timeout=timeout,
-                    in_ep=in_ep,
-                    out_ep=out_ep,
+                    in_ep_override=_in_ep,
+                    out_ep_override=_out_ep,
                     auto_find=False,
                     *args,
                     **kwargs,
@@ -238,8 +279,8 @@ class EscposEngineGenerator:
             product_id: hex = 0x1,
             auto_find: bool = True,
             timeout: int = 1000,
-            in_ep: hex = 0x82,
-            out_ep: hex = 0x01,
+            in_ep_override: Optional[hex] = None,
+            out_ep_override: Optional[hex] = None,
             *args,
             **kwargs
     ) -> EscposEngine:
@@ -257,8 +298,8 @@ class EscposEngineGenerator:
         :param vendor_id: Vendor ID of the printer
         :param product_id: Product ID of the printer
         :param timeout: Timeout for printer commands
-        :param in_ep: In_ep
-        :param out_ep: Out_ep
+        :param in_ep_override: Override the auto-found in_ep value with a custom one
+        :param out_ep_override: Override the auto-found out_ep value with a custom one
         :param args: Extra arguments
         :param kwargs: Formatting arguments & extra printer arguments
         :return: Initialized Escpos Engine with USB Printer
@@ -267,6 +308,17 @@ class EscposEngineGenerator:
         """
 
         try:
+            device: usb.core.Device = usb.core.find(idVendor=vendor_id, idProduct=product_id)
+            in_ep, out_ep = cls.__find_endpoints(device, in_ep=in_ep_override, out_ep=out_ep_override)
+
+            # If override exists
+            if in_ep_override is not None:
+                in_ep = out_ep_override
+
+            # If override exists
+            if out_ep_override is not None:
+                out_ep = out_ep_override
+
             return EscposEngine(
                 Usb(
                     idVendor=vendor_id,
@@ -282,7 +334,7 @@ class EscposEngineGenerator:
         except Exception as ex:
             # Find printer
             if isinstance(ex, USBNotFoundError) and auto_find:
-                return cls.__auto_select(timeout, in_ep, out_ep, *args, **kwargs)
+                return cls.__auto_select(timeout, in_ep_override, out_ep_override, *args, **kwargs)
 
             # Generic raise error
             EscposEngineGenerator.__handle_exceptions(ex)
